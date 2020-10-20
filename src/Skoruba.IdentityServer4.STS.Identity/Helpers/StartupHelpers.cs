@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Globalization;
 using IdentityServer4.EntityFramework.Storage;
 using Microsoft.AspNetCore.Authentication;
@@ -19,7 +19,7 @@ using Skoruba.IdentityServer4.Shared.Email;
 using Skoruba.IdentityServer4.STS.Identity.Configuration;
 using Skoruba.IdentityServer4.STS.Identity.Configuration.ApplicationParts;
 using Skoruba.IdentityServer4.STS.Identity.Configuration.Constants;
-using Skoruba.IdentityServer4.STS.Identity.Configuration.Interfaces;
+using Skoruba.IdentityServer4.STS.Identity.Helpers.ADUtilities;
 using Skoruba.IdentityServer4.STS.Identity.Helpers.Localization;
 using System.Linq;
 using Skoruba.IdentityServer4.Admin.EntityFramework.Interfaces;
@@ -32,6 +32,7 @@ using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Http;
 using Skoruba.IdentityServer4.Shared.Authentication;
 using Skoruba.IdentityServer4.Shared.Configuration.Identity;
+using Skoruba.IdentityServer4.STS.Identity.Configuration.Interfaces;
 
 namespace Skoruba.IdentityServer4.STS.Identity.Helpers
 {
@@ -200,10 +201,13 @@ namespace Skoruba.IdentityServer4.STS.Identity.Helpers
             var loginConfiguration = GetLoginConfiguration(configuration);
             var registrationConfiguration = GetRegistrationConfiguration(configuration);
             var identityOptions = configuration.GetSection(nameof(IdentityOptions)).Get<IdentityOptions>();
+            var windowsAuthConfiguration = GetWindowsAuthConfiguration(configuration);
 
             services
                 .AddSingleton(registrationConfiguration)
                 .AddSingleton(loginConfiguration)
+                .AddSingleton(windowsAuthConfiguration)
+                .AddSingleton<IADUtilities, ADUtilities.ADUtilities>()
                 .AddSingleton(identityOptions)
                 .AddScoped<UserResolver<TUserIdentity>>()
                 .AddIdentity<TUserIdentity, TUserIdentityRole>(options => configuration.GetSection(nameof(IdentityOptions)).Bind(options))
@@ -221,6 +225,11 @@ namespace Skoruba.IdentityServer4.STS.Identity.Helpers
             });
 
             services.Configure<IISOptions>(iis =>
+            {
+                iis.AuthenticationDisplayName = "Windows";
+                iis.AutomaticAuthentication = false;
+            });
+            services.Configure<IISServerOptions>(iis =>
             {
                 iis.AuthenticationDisplayName = "Windows";
                 iis.AutomaticAuthentication = false;
@@ -247,6 +256,24 @@ namespace Skoruba.IdentityServer4.STS.Identity.Helpers
             }
 
             return loginConfiguration;
+        }
+
+        /// <summary>
+        /// Get configuration for login
+        /// </summary>
+        /// <param name="configuration"></param>
+        /// <returns></returns>
+        private static WindowsAuthConfiguration GetWindowsAuthConfiguration(IConfiguration configuration)
+        {
+            var windowsAuthConfiguration = configuration.GetSection(nameof(WindowsAuthConfiguration)).Get<WindowsAuthConfiguration>();
+
+            // Cannot load configuration - use default configuration values
+            if (windowsAuthConfiguration == null)
+            {
+                return new WindowsAuthConfiguration();
+            }
+
+            return windowsAuthConfiguration;
         }
 
         /// <summary>
